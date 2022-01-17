@@ -5,6 +5,7 @@ import {
   OAuth2StrategyVerifyParams,
 } from "remix-auth-oauth2";
 import type { StrategyVerifyCallback } from "remix-auth";
+import { redirect, SessionStorage } from "@remix-run/server-runtime";
 
 export interface Auth0StrategyOptions {
   domain: string;
@@ -66,6 +67,7 @@ export class Auth0Strategy<User> extends OAuth2Strategy<
   name = "auth0";
 
   private userInfoURL: string;
+  private logoutURL: string;
   private scope: string;
   private audience?: string;
 
@@ -88,6 +90,7 @@ export class Auth0Strategy<User> extends OAuth2Strategy<
     );
 
     this.userInfoURL = `https://${options.domain}/userinfo`;
+    this.logoutURL = `https://${options.domain}/v2/logout`;
     this.scope = options.scope || "openid profile email";
     this.audience = options.audience;
   }
@@ -124,5 +127,25 @@ export class Auth0Strategy<User> extends OAuth2Strategy<
     };
 
     return profile;
+  }
+
+  public async logout(
+    request: Request,
+    sessionStorage: SessionStorage,
+    options: { redirectTo: string }
+  ): Promise<void> {
+    let session = await sessionStorage.getSession(
+      request.headers.get("Cookie")
+    );
+
+    let logoutURL = new URL(this.logoutURL);
+    logoutURL.searchParams.append("returnTo", options.redirectTo);
+    logoutURL.searchParams.append("client_id", this.clientID);
+
+    throw redirect(logoutURL.href, {
+      headers: {
+        "Set-Cookie": await sessionStorage.destroySession(session),
+      },
+    });
   }
 }

@@ -137,4 +137,42 @@ describe(Auth0Strategy, () => {
       expect(redirectUrl.searchParams.get("audience")).toBe("SOME_AUDIENCE");
     }
   });
+
+  test("should redirect to logout URL with appropriate arguments and destroy session", async () => {
+    let strategy = new Auth0Strategy(
+      {
+        domain: "test.fake.auth0.com",
+        clientID: "CLIENT_ID",
+        clientSecret: "CLIENT_SECRET",
+        callbackURL: "https://example.app/callback",
+      },
+      verify
+    );
+
+    let request = new Request("https://example.app/auth/auth0");
+
+    try {
+      await strategy.logout(request, sessionStorage, {
+        redirectTo: "/login",
+      });
+    } catch (error) {
+      if (!(error instanceof Response)) throw error;
+
+      let location = error.headers.get("Location");
+
+      if (!location) throw new Error("No redirect header");
+
+      let redirectUrl = new URL(location);
+
+      expect(redirectUrl.hostname).toBe("test.fake.auth0.com");
+      expect(redirectUrl.pathname).toBe("/v2/logout");
+      expect(redirectUrl.searchParams.get("returnTo")).toBe("/login");
+      expect(redirectUrl.searchParams.get("client_id")).toBe("CLIENT_ID");
+
+      let session = await sessionStorage.getSession();
+      expect(error.headers.get("Set-Cookie")).toBe(
+        await sessionStorage.destroySession(session)
+      );
+    }
+  });
 });
